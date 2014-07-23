@@ -5,6 +5,7 @@ Makefile.PL
 MANIFEST
 README
 t/001_load.t
+t/002_use_home_template.t
 t/template_base_app.html.tmpl
 t/templates/template1.html.tmpl
 Todo

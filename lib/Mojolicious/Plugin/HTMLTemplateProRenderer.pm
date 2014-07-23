@@ -1,66 +1,77 @@
 package Mojolicious::Plugin::HTMLTemplateProRenderer;
 
+use 5.006;
 use Mojo::Base 'Mojolicious::Plugin';
 
 use HTML::Template::Pro;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub register {
-  my ($self, $app, $conf) = @_;
+	my ( $self, $app, $conf ) = @_;
+	$self->{plugin_config} = $conf;
+	$app->renderer->add_handler( tmpl => sub{ $self->render_tmpl(@_)} );
+}
 
-  $app->renderer->add_handler(
-     tmpl => sub {
-        my ($r, $c, $output, $options) = @_;
-        my %tmpl_params = %{$c->stash};
+sub render_tmpl {
+	my ( $self, $r, $c, $output, $options ) = @_;
+	my $conf        = $self->{plugin_config};
+	my %tmpl_params = %{ $c->stash };
 
-	unshift @{$r->paths},$c->app->home if ($conf->{tmpl_opts}->{use_home_template} || delete $tmpl_params{use_home_template}  );
+	unshift @{ $r->paths }, $c->app->home
+	  if ( $conf->{tmpl_opts}->{use_home_template}
+		|| delete $tmpl_params{use_home_template} );
 
-        my $path = $r->template_path($options);
 	my $controller = $c->stash('controller');
 
 	my @template_dirs;
 
 	push @template_dirs, $c->app->home->rel_dir('templates');
 
-	if($controller) {
-            push @template_dirs, $c->app->home->rel_dir("templates/$controller");
+	if ($controller) {
+		push @template_dirs, $c->app->home->rel_dir("templates/$controller");
 	}
 
-        my %t_options;
+	my %t_options;
 
-        $t_options{die_on_bad_params} = 0;
-        $t_options{global_vars} = 1;
-        $t_options{loop_context_vars} = 1;
-        $t_options{path} = \@template_dirs;
-        $t_options{search_path_on_include} = 1;
+	$t_options{die_on_bad_params}      = 0;
+	$t_options{global_vars}            = 1;
+	$t_options{loop_context_vars}      = 1;
+	$t_options{path}                   = \@template_dirs;
+	$t_options{search_path_on_include} = 1;
 
-        if(defined($options->{inline})) {
-            $t_options{scalarref} = \$options->{inline};
-        } elsif(defined($options->{template})) {
-            $t_options{filename} = $path;
-            $t_options{cache} = 1;
-        }
+	if ( defined( $options->{inline} ) ) {
+		$t_options{scalarref} = \$options->{inline};
+	}
+	elsif ( defined( $options->{template} ) ) {
+		if (defined (my $path = $r->template_path($options))) {
+			$t_options{filename} = $path;
+			$t_options{cache}    = 1;
+		} else {
+			$t_options{scalarref} = $r->get_data_template($options);
+		}
 
-	# sanity params removing scalar inside arrayref 
-	foreach (keys %tmpl_params) {
-		delete $tmpl_params{$_} 
-			if ((ref $tmpl_params{$_} eq 'ARRAY') 
-				&& $tmpl_params{$_}>0 
-				&& $tmpl_params{$_}->[0] ne 'HASH');
 	}
 
-        my $t = HTML::Template::Pro->new(%t_options,
-                                    %{$conf->{tmpl_opts}             || {}},
-                                    %{delete $tmpl_params{tmpl_opts} || {}});
+	# sanity params removing scalar inside arrayref
+	foreach ( keys %tmpl_params ) {
+		delete $tmpl_params{$_}
+		  if ( ( ref $tmpl_params{$_} eq 'ARRAY' )
+			&& $tmpl_params{$_} > 0
+			&& $tmpl_params{$_}->[0] ne 'HASH' );
+	}
 
-        unless($t) { $r->render_exception("ERROR: No template created"); }
+	my $t = HTML::Template::Pro->new(
+		%t_options,
+		%{ $conf->{tmpl_opts} || {} },
+		%{ delete $tmpl_params{tmpl_opts} || {} }
+	);
 
-        $t->param(%tmpl_params);
+	unless ($t) { $r->render_exception("ERROR: No template created"); }
 
-        $$output = $t->output();
-     }
-  );
+	$t->param(%tmpl_params);
+
+	$$output = $t->output();
 }
 
 1;

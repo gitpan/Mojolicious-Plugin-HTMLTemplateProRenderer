@@ -9,5 +9,6 @@ WriteMakefile(
 			'Mojolicious' => '4.0', 
 			'HTML::Template::Pro' => '0.45'
                     },
+	MIN_PERL_VERSION => '5.006',
 	test         => {TESTS => 't/*.t'}
 );
